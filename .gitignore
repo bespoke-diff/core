@@ -69,3 +69,4 @@ AGENTS.md
 .conductor/
 
 maintenance/
+hosting/docker/.env
