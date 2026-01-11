@@ -11,6 +11,7 @@ services:
   core:
     container_name: core-app
     image: redplanethq/core:${VERSION}
+    restart: unless-stopped
     environment:
       - NODE_ENV=${NODE_ENV}
       - DATABASE_URL=${DATABASE_URL}
@@ -61,6 +62,32 @@ services:
         condition: service_started
     networks:
       - core
+      - coolify
+    labels:
+      # Traefik configuration for Coolify
+      - "traefik.enable=true"
+
+      # Service configuration - CORE listens on port 3000 internally
+      - "traefik.http.services.core-memory.loadbalancer.server.port=3000"
+      - "traefik.docker.network=coolify"
+      - "traefik.http.services.core-memory.loadbalancer.server.scheme=http"
+
+      # HTTP router (redirects to HTTPS)
+      - "traefik.http.routers.core-memory-http.entrypoints=http"
+      - "traefik.http.routers.core-memory-http.rule=Host(`${TRAEFIK_HOST:-localhost}`)"
+      - "traefik.http.routers.core-memory-http.middlewares=redirect-to-https"
+      - "traefik.http.routers.core-memory-http.service=core-memory"
+
+      # HTTPS router (main router)
+      - "traefik.http.routers.core-memory-https.entrypoints=https"
+      - "traefik.http.routers.core-memory-https.rule=Host(`${TRAEFIK_HOST:-localhost}`)"
+      - "traefik.http.routers.core-memory-https.tls=true"
+      - "traefik.http.routers.core-memory-https.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.core-memory-https.service=core-memory"
+
+      # Middleware for HTTPS redirect
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
 
   postgres:
     container_name: core-postgres
@@ -141,6 +168,10 @@ networks:
   core:
     name: core
     driver: bridge
+  # Coolify network for Traefik reverse proxy (only used in production)
+  coolify:
+    external: true
+    name: coolify
 
 volumes:
   postgres_data:
